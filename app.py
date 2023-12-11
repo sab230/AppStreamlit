@@ -3,61 +3,43 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(
-    page_title="My Streamlit App",
-    page_icon='🧠',
-    layout="wide"
-)
+import requests
+import bs4 as bs
 
-st.title("My first Title")
+def scrape_page(search):
+    json_data = []
 
-st.markdown("""
-# Titre
-## Sous-titre
-```
-            print('Hello World')
-```          
-"""
-)
+    for page_number in range(3):
+        url = f"https://www.blogdumoderateur.com/page/{page_number}/?s=" + search
+        response = requests.get(url)
+        soup = bs.BeautifulSoup(response.text, "html.parser")
 
-# Sous-titre
-st.subheader("Subheader")
+        article = soup.find_all('article')
 
-# Afficher des éléments sur la page
-st.write("Bonjour tout le monde !")
+        for i in range(len(article)):
+            title = article[i].find('h3').text.replace('\xa0', '')
+            image = article[i].find('img')['src']
+            link = article[i].find('h3').parent['href']
+            theme = article[i].find('span', 'favtag').text
+            date = article[i].find('time').get('datetime').split('T')[0]
 
-df = pd.read_json('bdm.json').T
-if st.checkbox('Afficher le dataframe'):
-    st.write(df)
+            json_data.append({'title': title, 'image': image, 'link': link, 'theme': theme, 'date': date})
 
-# Création de colonnes
-col1, col2 = st.columns(2)
 
-with col1:
-    # Graphique avec matplotlib
-    fig, ax = plt.subplots()
-    ax.hist(df.categorie)
-    st.pyplot(fig)
+    return json_data
 
-with col2:
-    # Graphique avec plotly.expres
-    st.plotly_chart(px.histogram(df.categorie))
-
-theme = st.selectbox('Sélectionnez le thème : ', df.categorie.value_counts().index)
-
-st.write(theme, len(df[df.categorie == theme].categorie))
-
-text = st.text_input('Tape your text')
-st.title(text)
-
+submitted = False
 
 with st.form('Form 1'):
-    name = st.text_input('Tape your name')
-    age = st.slider('Select your age : ', 0, 100)
+    name = st.text_input('Tape your search')
 
     if st.form_submit_button('Send Form'):
-        st.write('Your name : %s'%(name))
-        st.write(f'Your age : {age}')
+        scrape_data = scrape_page(name)
 
-if st.sidebar.button("Bonjour"):
-    st.sidebar.write("Bonjour")
+        df = pd.DataFrame(scrape_data)
+        st.write(df)
+        submitted = True
+
+
+if submitted:
+    st.download_button('Download Dataframe', df.to_csv(), 'data.csv', 'text/csv')
